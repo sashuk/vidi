@@ -6,7 +6,9 @@
 
 'use strict';
 
-import { LAYER, LAYER_TYPE_DEFAULT } from './layerTree/constants';
+import { LAYER_TYPE_DEFAULT } from './layerTree/constants';
+
+const MODULE_NAME = `bindEvent`;
 
 /**
  *
@@ -42,6 +44,8 @@ var setting;
 var state;
 var applicationModules = false;
 var isStarted = false;
+var _self = false;
+var lastActivatedModule = false;
 
 /**
  *
@@ -62,10 +66,14 @@ module.exports = module.exports = {
         backboneEvents = modules.backboneEvents;
         setting = modules.setting;
         state = modules.state;
+        _self = this;
         return this;
     },
     init: function (str) {
         apiBridgeInstance = APIBridgeSingletone();
+
+        state.listenTo(MODULE_NAME, _self);
+        state.listen(MODULE_NAME, `update`);
 
         var doneL = false, doneB = false, loadingL = 0, loadingB = 0;
 
@@ -488,10 +496,15 @@ module.exports = module.exports = {
             backboneEvents.get().trigger(`off:all`);
 
             let moduleId = $(this).data(`module-id`);
+            if (moduleId && moduleId !== ``) {
+                lastActivatedModule = moduleId;
+            }
+
             setTimeout(() => {
                 if (moduleId && moduleId !== ``) {
                     if (moduleId in applicationModules) {
                         backboneEvents.get().trigger(`on:${moduleId}`);
+                        backboneEvents.get().trigger(`${MODULE_NAME}:update`);
                     } else {
                         console.error(`Module ${moduleId} was not found`);
                     }
@@ -502,7 +515,38 @@ module.exports = module.exports = {
             $("#side-panel ul li").removeClass("active");
             id.addClass("active");
         });
+    },
 
-    }
+    /**
+     * Resets state to default value
+     */
+    resetState: () => {
+        return new Promise((resolve, reject) => {
+            backboneEvents.get().trigger(`off:all`);
+            resolve();
+        });
+    },
+
+    /**
+     * Returns current module state
+     */
+    getState: () => { return { lastActivatedModule }; },
+
+    /**
+     * Applies externally provided state
+     */
+    applyState: (newState) => {
+        return new Promise((resolve, reject) => {
+            if (`lastActivatedModule` in newState && newState.lastActivatedModule) {
+                backboneEvents.get().trigger(`off:all`);
+                setTimeout(() => {
+                    $(`[data-module-id="${newState.lastActivatedModule}"]`).trigger('click');
+                }, 500);
+            }
+
+            resolve();
+        });
+    },
+
 };
 
